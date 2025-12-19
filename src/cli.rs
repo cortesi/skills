@@ -16,9 +16,9 @@ struct Cli {
     /// Enable verbose output.
     #[arg(long)]
     verbose: bool,
-    /// Command to execute.
+    /// Command to execute (defaults to list).
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 /// Supported color output modes.
@@ -79,7 +79,7 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     let color = cli.color.into_choice();
 
-    match cli.command {
+    match cli.command.unwrap_or(Command::List) {
         Command::List => commands::list::run(color, cli.verbose).await,
         Command::Push {
             skill,
