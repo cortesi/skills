@@ -11,7 +11,7 @@ use crate::error::{Error, Result};
 pub async fn run(path: PathBuf) -> Result<()> {
     create_skill_template(&path)?;
     println!("Created skill at {}/SKILL.md", path.display());
-    println!("\nEdit the SKILL.md file, then run `skills update` to sync.");
+    println!("\nEdit the SKILL.md file, then run `skills push` to sync.");
     Ok(())
 }
 

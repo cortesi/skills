@@ -90,9 +90,13 @@ pub fn build_entries(catalog: &Catalog, diagnostics: &mut Diagnostics) -> Vec<Sk
     entries.into_iter().map(|(_, entry)| entry).collect()
 }
 
-/// Normalize line endings for content comparisons.
+/// Normalize line endings and trailing newline for content comparisons.
 pub fn normalize_line_endings(contents: &str) -> String {
-    contents.replace("\r\n", "\n").replace('\r', "\n")
+    let mut normalized = contents.replace("\r\n", "\n").replace('\r', "\n");
+    if normalized.ends_with('\n') {
+        normalized.pop();
+    }
+    normalized
 }
 
 /// Sort skill entries case-insensitively, stable within ties.
@@ -169,7 +173,13 @@ mod tests {
     #[test]
     fn normalizes_line_endings() {
         let normalized = normalize_line_endings("a\r\nb\r");
-        assert_eq!(normalized, "a\nb\n");
+        assert_eq!(normalized, "a\nb");
+    }
+
+    #[test]
+    fn preserves_extra_trailing_newlines() {
+        let normalized = normalize_line_endings("a\n\n");
+        assert_eq!(normalized, "a\n");
     }
 
     #[test]

@@ -34,5 +34,5 @@ pub mod list;
 pub mod new;
 /// Pull command implementation.
 pub mod pull;
-/// Update command implementation.
-pub mod update;
+/// Push command implementation.
+pub mod push;

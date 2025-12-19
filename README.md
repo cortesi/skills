@@ -35,12 +35,12 @@ Initialize a config file (prompting for a source directory):
 skills init
 ```
 
-Update tool installs from sources (all skills, dry-run, or a single skill):
+Push tool installs from sources (all skills, dry-run, or a single skill):
 
 ```bash
-skills update
-skills update --dry-run
-skills update pdf
+skills push
+skills push --dry-run
+skills push pdf
 ```
 
 Pull tool edits back into sources:
@@ -57,6 +57,9 @@ Show diffs (optionally via a pager):
 skills diff
 skills diff xlsx --pager delta
 ```
+
+When `--pager` is omitted, `skills diff` falls back to `GIT_PAGER`, `pager.diff`, `core.pager`,
+and `PAGER` in that order.
 
 Create a new skill skeleton:
 

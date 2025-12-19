@@ -1,4 +1,4 @@
-//! Implementation of the `skills update` command.
+//! Implementation of the `skills push` command.
 
 use std::{
     fs,
@@ -18,7 +18,7 @@ use crate::{
     tool::Tool,
 };
 
-/// Execute the update command.
+/// Execute the push command.
 pub async fn run(
     _color: ColorChoice,
     verbose: bool,
@@ -35,11 +35,11 @@ pub async fn run(
     skills.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
 
     if let Some(name) = skill {
-        println!("Updating {name}...");
+        println!("Pushing {name}...");
         let Some(skill) = skills.first().copied() else {
             return Err(Error::SkillNotFound { name });
         };
-        let results = update_single_skill(&catalog, skill, dry_run, force, &mut diagnostics)?;
+        let results = push_single_skill(&catalog, skill, dry_run, force, &mut diagnostics)?;
         for result in results {
             println!(
                 "  {:<6}: {} ({})",
@@ -48,8 +48,8 @@ pub async fn run(
         }
     } else {
         for tool in Tool::all() {
-            println!("Updating {}...", tool.display_name());
-            let results = update_tool(&catalog, &skills, tool, dry_run, force, &mut diagnostics)?;
+            println!("Pushing {}...", tool.display_name());
+            let results = push_tool(&catalog, &skills, tool, dry_run, force, &mut diagnostics)?;
             for result in results {
                 println!("  {} {} ({})", result.marker, result.name, result.summary);
             }
@@ -61,15 +61,15 @@ pub async fn run(
     Ok(())
 }
 
-/// Update all skills for a single tool.
-fn update_tool(
+/// Push all skills for a single tool.
+fn push_tool(
     catalog: &Catalog,
     skills: &[&SkillTemplate],
     tool: Tool,
     dry_run: bool,
     force: bool,
     diagnostics: &mut Diagnostics,
-) -> Result<Vec<ToolUpdateLine>> {
+) -> Result<Vec<ToolPushLine>> {
     let mut lines = Vec::new();
     let tool_dir = tool.skills_dir()?;
 
@@ -87,26 +87,26 @@ fn update_tool(
         let existing = tool_skill.map(|installed| &installed.contents);
 
         let status = match existing {
-            None => UpdateStatus::New,
+            None => PushStatus::New,
             Some(contents) => {
                 if normalize_line_endings(&rendered) == normalize_line_endings(contents) {
-                    UpdateStatus::Unchanged
+                    PushStatus::Unchanged
                 } else {
-                    UpdateStatus::Modified
+                    PushStatus::Modified
                 }
             }
         };
 
-        let request = UpdateRequest {
+        let request = PushRequest {
             skill,
             tool,
             tool_dir: &tool_dir,
             rendered: &rendered,
             status,
         };
-        let result = apply_update(&request, dry_run, force)?;
+        let result = apply_push(&request, dry_run, force)?;
 
-        lines.push(ToolUpdateLine {
+        lines.push(ToolPushLine {
             marker: result.marker,
             name: skill.name.clone(),
             summary: result.summary,
@@ -116,14 +116,14 @@ fn update_tool(
     Ok(lines)
 }
 
-/// Update a single skill across all tools.
-fn update_single_skill(
+/// Push a single skill across all tools.
+fn push_single_skill(
     catalog: &Catalog,
     skill: &SkillTemplate,
     dry_run: bool,
     force: bool,
     diagnostics: &mut Diagnostics,
-) -> Result<Vec<SingleUpdateLine>> {
+) -> Result<Vec<SinglePushLine>> {
     let mut results = Vec::new();
 
     for tool in Tool::all() {
@@ -132,7 +132,7 @@ fn update_single_skill(
             Ok(rendered) => rendered,
             Err(error) => {
                 diagnostics.warn_skipped(&skill.skill_path, error);
-                results.push(SingleUpdateLine {
+                results.push(SinglePushLine {
                     tool_label: tool.id().to_string(),
                     marker: '!',
                     summary: "skipped".to_string(),
@@ -145,26 +145,26 @@ fn update_single_skill(
         let tool_skill = tool_map.and_then(|skills| skills.get(&skill.name));
         let existing = tool_skill.map(|installed| &installed.contents);
         let status = match existing {
-            None => UpdateStatus::New,
+            None => PushStatus::New,
             Some(contents) => {
                 if normalize_line_endings(&rendered) == normalize_line_endings(contents) {
-                    UpdateStatus::Unchanged
+                    PushStatus::Unchanged
                 } else {
-                    UpdateStatus::Modified
+                    PushStatus::Modified
                 }
             }
         };
 
-        let request = UpdateRequest {
+        let request = PushRequest {
             skill,
             tool,
             tool_dir: &tool_dir,
             rendered: &rendered,
             status,
         };
-        let result = apply_update(&request, dry_run, force)?;
+        let result = apply_push(&request, dry_run, force)?;
 
-        results.push(SingleUpdateLine {
+        results.push(SinglePushLine {
             tool_label: tool.id().to_string(),
             marker: result.marker,
             summary: result.summary,
@@ -188,8 +188,8 @@ fn select_skills<'a>(catalog: &'a Catalog, skill: Option<&str>) -> Result<Vec<&'
     Ok(catalog.sources.values().collect())
 }
 
-/// Request parameters for an update operation.
-struct UpdateRequest<'a> {
+/// Request parameters for a push operation.
+struct PushRequest<'a> {
     /// Source skill template to apply.
     skill: &'a SkillTemplate,
     /// Target tool.
@@ -198,13 +198,13 @@ struct UpdateRequest<'a> {
     tool_dir: &'a PathBuf,
     /// Rendered template content.
     rendered: &'a str,
-    /// Precomputed update status.
-    status: UpdateStatus,
+    /// Precomputed push status.
+    status: PushStatus,
 }
 
-/// Update status for a tool skill.
+/// Push status for a tool skill.
 #[derive(Debug, Clone, Copy)]
-enum UpdateStatus {
+enum PushStatus {
     /// Skill does not exist in the tool.
     New,
     /// Tool skill is already in sync.
@@ -213,8 +213,8 @@ enum UpdateStatus {
     Modified,
 }
 
-/// Output line for tool update summary.
-struct ToolUpdateLine {
+/// Output line for tool push summary.
+struct ToolPushLine {
     /// Summary marker.
     marker: char,
     /// Skill name.
@@ -223,8 +223,8 @@ struct ToolUpdateLine {
     summary: String,
 }
 
-/// Output line for single-skill update summary.
-struct SingleUpdateLine {
+/// Output line for single-skill push summary.
+struct SinglePushLine {
     /// Tool label.
     tool_label: String,
     /// Output marker.
@@ -233,31 +233,31 @@ struct SingleUpdateLine {
     summary: String,
 }
 
-/// Result of applying an update request.
-struct UpdateResult {
+/// Result of applying a push request.
+struct PushResult {
     /// Output marker.
     marker: char,
     /// Summary label.
     summary: String,
 }
 
-/// Apply update logic and write skill files if needed.
-fn apply_update(request: &UpdateRequest<'_>, dry_run: bool, force: bool) -> Result<UpdateResult> {
+/// Apply push logic and write skill files if needed.
+fn apply_push(request: &PushRequest<'_>, dry_run: bool, force: bool) -> Result<PushResult> {
     match request.status {
-        UpdateStatus::Unchanged => Ok(UpdateResult {
+        PushStatus::Unchanged => Ok(PushResult {
             marker: '=',
             summary: "unchanged".to_string(),
         }),
-        UpdateStatus::New => {
+        PushStatus::New => {
             if !dry_run {
                 write_tool_skill(request.tool_dir, &request.skill.name, request.rendered)?;
             }
-            Ok(UpdateResult {
+            Ok(PushResult {
                 marker: '+',
                 summary: "new".to_string(),
             })
         }
-        UpdateStatus::Modified => {
+        PushStatus::Modified => {
             if !force && !dry_run {
                 let prompt = format!(
                     "Overwrite modified skill '{}' in {}?",
@@ -266,7 +266,7 @@ fn apply_update(request: &UpdateRequest<'_>, dry_run: bool, force: bool) -> Resu
                 );
                 let confirmed = confirm(&prompt)?;
                 if !confirmed {
-                    return Ok(UpdateResult {
+                    return Ok(PushResult {
                         marker: '!',
                         summary: "skipped".to_string(),
                     });
@@ -277,9 +277,9 @@ fn apply_update(request: &UpdateRequest<'_>, dry_run: bool, force: bool) -> Resu
                 write_tool_skill(request.tool_dir, &request.skill.name, request.rendered)?;
             }
 
-            Ok(UpdateResult {
+            Ok(PushResult {
                 marker: '~',
-                summary: "updated".to_string(),
+                summary: "pushed".to_string(),
             })
         }
     }

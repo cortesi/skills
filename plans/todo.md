@@ -38,11 +38,11 @@ Expose the status engine via list output with color handling.
 2. [x] Implement `skills list` formatting and ensure the multi-line layout matches the spec.
 3. [x] Add tests for list ordering and color-disabled output.
 
-4. Stage Four: `skills update`
+4. Stage Four: `skills push`
 
 Sync source skills to tools with dry-run and overwrite behavior.
 
-1. [x] Implement update planning logic with `--dry-run`, per-tool summaries, and `--force`.
+1. [x] Implement push planning logic with `--dry-run`, per-tool summaries, and `--force`.
 2. [x] Add interactive prompts for modified skills (default No) using `inquire`.
 3. [x] Write tool copies to disk, skip orphans, and emit warnings + completion summaries.
 

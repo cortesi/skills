@@ -38,9 +38,9 @@ enum Command {
     /// List skills and their sync status.
     #[command(alias = "ls")]
     List,
-    /// Update tool skills from sources.
-    Update {
-        /// Limit updates to a single skill.
+    /// Push source skills to tools.
+    Push {
+        /// Limit pushes to a single skill.
         skill: Option<String>,
         /// Preview changes without writing.
         #[arg(long, short = 'n')]
@@ -81,11 +81,11 @@ pub async fn run() -> Result<()> {
 
     match cli.command {
         Command::List => commands::list::run(color, cli.verbose).await,
-        Command::Update {
+        Command::Push {
             skill,
             dry_run,
             force,
-        } => commands::update::run(color, cli.verbose, skill, dry_run, force).await,
+        } => commands::push::run(color, cli.verbose, skill, dry_run, force).await,
         Command::Pull { skill, to } => commands::pull::run(color, cli.verbose, skill, to).await,
         Command::Diff { skill, pager } => {
             commands::diff::run(color, cli.verbose, skill, pager).await

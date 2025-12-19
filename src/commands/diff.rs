@@ -7,7 +7,7 @@ use crate::{
     commands::{ColorChoice, init},
     config::Config,
     diagnostics::Diagnostics,
-    diff::{colorize_diff, unified_diff, write_output},
+    diff::{colorize_diff, resolve_pager, unified_diff, write_output},
     error::{Error, Result},
     paths::display_path,
     skill::render_template,
@@ -102,6 +102,7 @@ pub async fn run(
     }
 
     diagnostics.print_skipped_summary();
+    let pager = resolve_pager(pager.as_deref());
     write_output(&output, pager.as_deref())?;
     Ok(())
 }

@@ -92,10 +92,10 @@ Status indicators:
 - `missing` - Not installed in tool
 - `orphan` - Exists in tool but not in any source
 
-### `skills update [skill-name]`
+### `skills push [skill-name]`
 
-Pushes skills from source directories to tool directories. By default updates all skills; pass a
-skill name to update just one.
+Pushes skills from source directories to tool directories. By default pushes all skills; pass a
+skill name to push just one.
 
 When a tool copy is `modified`, the default behavior is to prompt per skill (default No). The
 `--force` flag overwrites without prompting.
@@ -104,11 +104,11 @@ When a tool copy is `modified`, the default behavior is to prompt per skill (def
 the installed tool copy, byte-for-byte after normalizing line endings.
 
 ```
-$ skills update
-Updating Claude Code...
+$ skills push
+Pushing Claude Code...
   + pdf (new)
-  ~ xlsx (updated)
-Updating Codex...
+  ~ xlsx (pushed)
+Pushing Codex...
   + pdf (new)
   = xlsx (unchanged)
 
@@ -116,8 +116,8 @@ Completed with 1 warning. Use --verbose for details.
 ```
 
 ```
-$ skills update pdf
-Updating pdf...
+$ skills push pdf
+Pushing pdf...
   claude: + (new)
   codex:  + (new)
 ```
@@ -180,7 +180,7 @@ If the destination path already exists, the command errors and refuses to overwr
 $ skills new ~/dotfiles/skills/my-helper
 Created skill at ~/dotfiles/skills/my-helper/SKILL.md
 
-Edit the SKILL.md file, then run `skills update` to sync.
+Edit the SKILL.md file, then run `skills push` to sync.
 ```
 
 Generated template:
@@ -206,6 +206,9 @@ proceeding.
 ### `skills diff [skill-name]`
 
 Shows detailed differences between source and installed skills.
+
+If `--pager` is not provided, the command falls back to `GIT_PAGER`, `pager.diff`, `core.pager`,
+and `PAGER` in that order.
 
 ```
 $ skills diff xlsx
@@ -256,9 +259,9 @@ When a skill has invalid YAML frontmatter or missing required fields:
 4. Print a summary of skipped skills at the end
 
 ```
-$ skills update
+$ skills push
 Warning: ~/skills/broken/SKILL.md - missing required field 'description'
-Updating Claude Code...
+Pushing Claude Code...
   + pdf (new)
 
 Completed with 1 warning. Use --verbose for details.

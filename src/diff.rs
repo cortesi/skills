@@ -1,6 +1,7 @@
 //! Diff rendering and pager output helpers.
 
 use std::{
+    env,
     io::Write,
     process::{Command, Stdio},
 };
@@ -101,4 +102,45 @@ pub fn write_output(output: &str, pager: Option<&str>) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Resolve the pager command to use for diff output.
+pub fn resolve_pager(override_pager: Option<&str>) -> Option<String> {
+    if let Some(pager) = override_pager {
+        return Some(pager.to_string());
+    }
+
+    env_pager("GIT_PAGER")
+        .or_else(|| git_config_pager("pager.diff"))
+        .or_else(|| git_config_pager("core.pager"))
+        .or_else(|| env_pager("PAGER"))
+}
+
+/// Resolve a pager from an environment variable.
+fn env_pager(key: &str) -> Option<String> {
+    let value = env::var(key).ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Resolve a pager from git config.
+fn git_config_pager(key: &str) -> Option<String> {
+    let output = Command::new("git")
+        .args(["config", "--get", key])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout);
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
