@@ -35,7 +35,7 @@ impl Tool {
         }
     }
 
-    /// Return the skills directory for this tool.
+    /// Return the global skills directory for this tool.
     pub(crate) fn skills_dir(self) -> Result<PathBuf> {
         let home = dirs::home_dir().ok_or(Error::HomeDirMissing)?;
         let dir = match self {
@@ -43,5 +43,13 @@ impl Tool {
             Self::Codex => home.join(".codex").join("skills"),
         };
         Ok(dir)
+    }
+
+    /// Return the local skills directory name for this tool (relative to project root).
+    pub(crate) fn local_skills_dir(self) -> PathBuf {
+        match self {
+            Self::Claude => PathBuf::from(".claude").join("skills"),
+            Self::Codex => PathBuf::from(".codex").join("skills"),
+        }
     }
 }

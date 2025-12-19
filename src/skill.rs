@@ -41,6 +41,21 @@ pub struct ToolSkill {
     pub(crate) modified: SystemTime,
 }
 
+/// Local skill in a project directory (.claude/skills or .codex/skills).
+#[derive(Debug, Clone)]
+pub struct LocalSkill {
+    /// Skill name from frontmatter.
+    pub(crate) name: String,
+    /// Which tool this local skill belongs to (Claude or Codex).
+    pub(crate) tool: Tool,
+    /// Directory containing the skill file.
+    pub(crate) skill_dir: PathBuf,
+    /// Path to the skill file.
+    pub(crate) skill_path: PathBuf,
+    /// Raw contents of the skill file.
+    pub(crate) contents: String,
+}
+
 /// Load a source skill from a directory if present.
 pub fn load_source_skill(
     source_root: &Path,
@@ -109,6 +124,42 @@ pub fn load_tool_skill(skill_dir: &Path, diagnostics: &mut Diagnostics) -> Optio
         skill_path,
         contents,
         modified,
+    })
+}
+
+/// Load a local skill from a project directory if present.
+pub fn load_local_skill(
+    skill_dir: &Path,
+    tool: Tool,
+    diagnostics: &mut Diagnostics,
+) -> Option<LocalSkill> {
+    let skill_path = skill_dir.join(SKILL_FILE_NAME);
+    if !skill_path.is_file() {
+        return None;
+    }
+
+    let contents = match fs::read_to_string(&skill_path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            diagnostics.warn_skipped(&skill_path, error.to_string());
+            return None;
+        }
+    };
+
+    let frontmatter = match parse_frontmatter(&contents) {
+        Ok(frontmatter) => frontmatter,
+        Err(error) => {
+            diagnostics.warn_skipped(&skill_path, error.message);
+            return None;
+        }
+    };
+
+    Some(LocalSkill {
+        name: frontmatter.name,
+        tool,
+        skill_dir: skill_dir.to_path_buf(),
+        skill_path,
+        contents,
     })
 }
 

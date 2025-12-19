@@ -36,3 +36,5 @@ pub mod new;
 pub mod pull;
 /// Push command implementation.
 pub mod push;
+/// Uplift command implementation.
+pub mod uplift;

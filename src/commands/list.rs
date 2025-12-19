@@ -1,5 +1,7 @@
 //! Implementation of the `skills list` command.
 
+use std::{collections::HashSet, env, path::Path};
+
 use owo_colors::OwoColorize;
 
 use crate::{
@@ -9,6 +11,7 @@ use crate::{
     diagnostics::Diagnostics,
     error::Result,
     paths::display_path,
+    skill::LocalSkill,
     status::{SkillEntry, SyncStatus, build_entries},
     tool::Tool,
 };
@@ -22,19 +25,69 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
     let entries = build_entries(&catalog, &mut diagnostics);
     let use_color = color.enabled();
 
-    for entry in entries {
+    // Print source/tool skills
+    for entry in &entries {
         let source_path = catalog
             .sources
             .get(&entry.name)
             .map(|skill| display_path(&skill.source_root))
             .unwrap_or_else(|| "-".to_string());
 
-        let claude = format_status(status_for_tool(&entry, Tool::Claude), use_color);
-        let codex = format_status(status_for_tool(&entry, Tool::Codex), use_color);
+        let claude = format_status(status_for_tool(entry, Tool::Claude), use_color);
+        let codex = format_status(status_for_tool(entry, Tool::Codex), use_color);
 
         println!("{}", entry.name);
         println!("  source: {}", source_path);
         println!("  claude: {:<9} codex: {:<9}", claude, codex);
+        println!();
+    }
+
+    // Collect and print local skills
+    let local_skills = collect_local_skills(&catalog);
+    let cwd = env::current_dir().ok();
+    if !local_skills.is_empty() {
+        if use_color {
+            println!("{}", "Local Skills:".bold());
+        } else {
+            println!("Local Skills:");
+        }
+        println!();
+        for skill in &local_skills {
+            let tool_label = format!("[{}]", skill.tool.id());
+            let path_display = display_relative_path(&skill.skill_dir, cwd.as_deref());
+            println!("  {} {}", skill.name, tool_label.dimmed());
+            println!("    path: {}", path_display);
+            println!();
+        }
+    }
+
+    // Print conflicts between local and global skills
+    let conflicts = find_conflicts(&catalog);
+    if !conflicts.is_empty() {
+        if use_color {
+            println!("{}", "Conflicts:".bold().yellow());
+        } else {
+            println!("Conflicts:");
+        }
+        println!();
+        for (name, tool) in &conflicts {
+            let warning = format!(
+                "  ⚠ '{}' exists locally and in {} global skills",
+                name,
+                tool.id()
+            );
+            if use_color {
+                println!("{}", warning.yellow());
+            } else {
+                println!("{}", warning);
+            }
+            println!("    Local takes precedence in this project");
+            println!();
+        }
+    }
+
+    if entries.is_empty() && local_skills.is_empty() {
+        println!("No skills found.");
         println!();
     }
 
@@ -71,6 +124,50 @@ fn format_status(status: SyncStatus, color: bool) -> String {
         SyncStatus::Missing => label.red().to_string(),
         SyncStatus::Orphan => label.red().to_string(),
     }
+}
+
+/// Collect all local skills from the catalog, sorted by name.
+fn collect_local_skills(catalog: &Catalog) -> Vec<&LocalSkill> {
+    let mut skills: Vec<&LocalSkill> = catalog
+        .local
+        .values()
+        .flat_map(|skills| skills.values())
+        .collect();
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    skills
+}
+
+/// Find conflicts where a local skill shadows a global tool skill.
+fn find_conflicts(catalog: &Catalog) -> Vec<(String, Tool)> {
+    let mut conflicts = Vec::new();
+    let mut seen: HashSet<(String, Tool)> = HashSet::new();
+
+    for (tool, local_skills) in &catalog.local {
+        if let Some(tool_skills) = catalog.tools.get(tool) {
+            for name in local_skills.keys() {
+                if tool_skills.contains_key(name) && seen.insert((name.clone(), *tool)) {
+                    conflicts.push((name.clone(), *tool));
+                }
+            }
+        }
+    }
+
+    conflicts.sort_by(|a, b| a.0.cmp(&b.0));
+    conflicts
+}
+
+/// Display a path relative to cwd if it's under cwd, otherwise use display_path.
+fn display_relative_path(path: &Path, cwd: Option<&Path>) -> String {
+    if let Some(cwd) = cwd {
+        if let Ok(relative) = path.strip_prefix(cwd) {
+            let rel_str = relative.display().to_string();
+            if rel_str.is_empty() {
+                return ".".to_string();
+            }
+            return format!("./{}", rel_str);
+        }
+    }
+    display_path(path)
 }
 
 #[cfg(test)]

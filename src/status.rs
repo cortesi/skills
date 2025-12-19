@@ -196,7 +196,8 @@ mod tests {
         let mut tools = HashMap::new();
         tools.insert(Tool::Codex, tool_map);
 
-        let catalog = Catalog { sources, tools };
+        let local = HashMap::new();
+        let catalog = Catalog { sources, tools, local };
         let mut diagnostics = Diagnostics::new(false);
         let entries = build_entries(&catalog, &mut diagnostics);
 
@@ -221,7 +222,8 @@ mod tests {
         sources.insert("Alpha".to_string(), sample_skill_template("Alpha"));
 
         let tools = HashMap::new();
-        let catalog = Catalog { sources, tools };
+        let local = HashMap::new();
+        let catalog = Catalog { sources, tools, local };
         let mut diagnostics = Diagnostics::new(false);
         let entries = build_entries(&catalog, &mut diagnostics);
 

@@ -155,6 +155,36 @@ pub enum Error {
         /// Error message describing the render failure.
         message: String,
     },
+    /// No local skill was found with the given name.
+    #[error("No local skill named '{name}' found in .claude/skills/ or .codex/skills/")]
+    LocalSkillNotFound {
+        /// Missing skill name.
+        name: String,
+    },
+    /// A skill already exists at the target location.
+    #[error("Skill '{name}' already exists at {path}. Use --force to overwrite.")]
+    SkillExists {
+        /// Skill name.
+        name: String,
+        /// Path where the skill exists.
+        path: PathBuf,
+    },
+    /// Failed to move a skill directory.
+    #[error("Failed to move skill from {from} to {to}: {source}")]
+    SkillMove {
+        /// Source path.
+        from: PathBuf,
+        /// Destination path.
+        to: PathBuf,
+        /// Underlying IO error.
+        source: io::Error,
+    },
+    /// Multiple local skills found with the same name.
+    #[error("Multiple local skills named '{name}' found. Specify --tool to disambiguate.")]
+    AmbiguousLocalSkill {
+        /// Ambiguous skill name.
+        name: String,
+    },
 }
 
 impl Error {

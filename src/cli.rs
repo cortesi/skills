@@ -72,6 +72,20 @@ enum Command {
         /// Destination directory for the new skill.
         path: PathBuf,
     },
+    /// Move a local skill to the global skills directory.
+    Uplift {
+        /// Name of the local skill to uplift.
+        skill: String,
+        /// Preview changes without moving.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+        /// Overwrite existing global skill without prompting.
+        #[arg(long, short = 'f')]
+        force: bool,
+        /// Specify tool when skill exists in both .claude and .codex.
+        #[arg(long)]
+        tool: Option<String>,
+    },
 }
 
 /// Run the requested command.
@@ -92,6 +106,12 @@ pub async fn run() -> Result<()> {
         }
         Command::Init => commands::init::run().await,
         Command::New { path } => commands::new::run(path).await,
+        Command::Uplift {
+            skill,
+            dry_run,
+            force,
+            tool,
+        } => commands::uplift::run(color, cli.verbose, skill, dry_run, force, tool).await,
     }
 }
 
