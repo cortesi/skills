@@ -196,6 +196,13 @@ description: <describe when this skill should be used>
 <instructions for the AI assistant>
 ```
 
+### `skills init`
+
+Prompts for a skills source directory and writes a config file at `~/.skills.toml`.
+
+If the config file is missing, other commands should automatically invoke `skills init` before
+proceeding.
+
 ### `skills diff [skill-name]`
 
 Shows detailed differences between source and installed skills.
