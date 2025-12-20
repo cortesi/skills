@@ -3,6 +3,7 @@
 use std::{collections::HashSet, env, path::Path};
 
 use owo_colors::OwoColorize;
+use textwrap::{Options, wrap};
 
 use crate::{
     catalog::Catalog,
@@ -27,16 +28,17 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
 
     // Print source/tool skills
     for entry in &entries {
-        let source_path = catalog
-            .sources
-            .get(&entry.name)
-            .map(|skill| display_path(&skill.source_root))
+        let skill = catalog.sources.get(&entry.name);
+        let source_path = skill
+            .map(|s| display_path(&s.source_root))
             .unwrap_or_else(|| "-".to_string());
+        let description = skill.map(|s| s.description.as_str()).unwrap_or("-");
 
         let claude = format_status(status_for_tool(entry, Tool::Claude), use_color);
         let codex = format_status(status_for_tool(entry, Tool::Codex), use_color);
 
         println!("{}", entry.name);
+        println!("{}", wrap_text(description, "  "));
         println!("  source: {}", source_path);
         println!("  claude: {:<9} codex: {:<9}", claude, codex);
         println!();
@@ -56,6 +58,7 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
             let tool_label = format!("[{}]", skill.tool.id());
             let path_display = display_relative_path(&skill.skill_dir, cwd.as_deref());
             println!("  {} {}", skill.name, tool_label.dimmed());
+            println!("{}", wrap_text(&skill.description, "    "));
             println!("    path: {}", path_display);
             println!();
         }
@@ -154,6 +157,21 @@ fn find_conflicts(catalog: &Catalog) -> Vec<(String, Tool)> {
 
     conflicts.sort_by(|a, b| a.0.cmp(&b.0));
     conflicts
+}
+
+/// Maximum width for wrapped text.
+const WRAP_WIDTH: usize = 80;
+
+/// Wrap text to a given width with an indent prefix.
+fn wrap_text(text: &str, indent: &str) -> String {
+    let options = Options::new(WRAP_WIDTH.saturating_sub(indent.len()))
+        .initial_indent("")
+        .subsequent_indent("");
+    wrap(text, options)
+        .iter()
+        .map(|line| format!("{}{}", indent, line))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Display a path relative to cwd if it's under cwd, otherwise use display_path.

@@ -7,6 +7,8 @@ use serde::Deserialize;
 pub struct Frontmatter {
     /// The declared skill name.
     pub name: String,
+    /// The declared skill description.
+    pub description: String,
 }
 
 /// Raw frontmatter fields for validation.
@@ -54,7 +56,7 @@ pub fn parse_frontmatter(contents: &str) -> Result<Frontmatter, FrontmatterError
         ));
     }
 
-    Ok(Frontmatter { name })
+    Ok(Frontmatter { name, description })
 }
 
 /// Byte range bounds for frontmatter in a document.

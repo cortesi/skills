@@ -154,6 +154,7 @@ mod tests {
     fn sample_skill_template(name: &str) -> SkillTemplate {
         SkillTemplate {
             name: name.to_string(),
+            description: "A sample skill".to_string(),
             source_root: "/tmp/source".into(),
             skill_dir: "/tmp/source/skill".into(),
             skill_path: "/tmp/source/skill/SKILL.md".into(),

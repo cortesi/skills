@@ -18,6 +18,8 @@ pub const SKILL_FILE_NAME: &str = "SKILL.md";
 pub struct SkillTemplate {
     /// Skill name from frontmatter.
     pub(crate) name: String,
+    /// Skill description from frontmatter.
+    pub(crate) description: String,
     /// Root source directory for this skill.
     pub(crate) source_root: PathBuf,
     /// Directory containing the skill file.
@@ -46,6 +48,8 @@ pub struct ToolSkill {
 pub struct LocalSkill {
     /// Skill name from frontmatter.
     pub(crate) name: String,
+    /// Skill description from frontmatter.
+    pub(crate) description: String,
     /// Which tool this local skill belongs to (Claude or Codex).
     pub(crate) tool: Tool,
     /// Directory containing the skill file.
@@ -81,6 +85,7 @@ pub fn load_source_skill(
 
     Some(SkillTemplate {
         name: frontmatter.name,
+        description: frontmatter.description,
         source_root: source_root.to_path_buf(),
         skill_dir: skill_dir.to_path_buf(),
         skill_path,
@@ -152,6 +157,7 @@ pub fn load_local_skill(
 
     Some(LocalSkill {
         name: frontmatter.name,
+        description: frontmatter.description,
         tool,
         skill_dir: skill_dir.to_path_buf(),
     })
