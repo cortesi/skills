@@ -111,10 +111,16 @@ enum Command {
         #[arg(long)]
         to: Option<PathBuf>,
     },
-    /// Push source skills to tools.
+    /// Push a source skill to tools.
     Push {
-        /// Limit pushes to a single skill.
-        skill: Option<String>,
+        /// Name of the skill to push.
+        skill: String,
+        /// Push only to Claude Code.
+        #[arg(long)]
+        claude: bool,
+        /// Push only to Codex.
+        #[arg(long)]
+        codex: bool,
         /// Preview changes without writing.
         #[arg(long, short = 'n')]
         dry_run: bool,
@@ -129,6 +135,29 @@ enum Command {
         /// Send output through a pager.
         #[arg(long)]
         pager: Option<String>,
+    },
+    /// Sync skills between sources and tools based on timestamps.
+    Sync {
+        /// Preview changes without writing.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+    },
+    /// Remove a skill from tool directories.
+    Unload {
+        /// Name of the skill to unload.
+        skill: String,
+        /// Unload only from Claude Code.
+        #[arg(long)]
+        claude: bool,
+        /// Unload only from Codex.
+        #[arg(long)]
+        codex: bool,
+        /// Preview changes without removing.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+        /// Remove without prompting.
+        #[arg(long, short = 'f')]
+        force: bool,
     },
     /// Move a local skill to the global skills directory.
     Uplift {
@@ -182,12 +211,22 @@ pub async fn run() -> Result<()> {
         Command::Pull { skill, to } => commands::pull::run(color, cli.verbose, skill, to).await,
         Command::Push {
             skill,
+            claude,
+            codex,
             dry_run,
             force,
-        } => commands::push::run(color, cli.verbose, skill, dry_run, force).await,
+        } => commands::push::run(color, cli.verbose, skill, claude, codex, dry_run, force).await,
         Command::Show { skill, pager } => {
             commands::show::run(color, cli.verbose, skill, pager).await
         }
+        Command::Sync { dry_run } => commands::sync::run(color, cli.verbose, dry_run).await,
+        Command::Unload {
+            skill,
+            claude,
+            codex,
+            dry_run,
+            force,
+        } => commands::unload::run(color, cli.verbose, skill, claude, codex, dry_run, force).await,
         Command::Uplift {
             skill,
             dry_run,

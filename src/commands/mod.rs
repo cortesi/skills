@@ -43,5 +43,9 @@ pub mod pull;
 pub mod push;
 /// Show command implementation.
 pub mod show;
+/// Sync command implementation.
+pub mod sync;
+/// Unload command implementation.
+pub mod unload;
 /// Uplift command implementation.
 pub mod uplift;

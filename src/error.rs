@@ -235,6 +235,14 @@ pub enum Error {
         /// Maximum allowed size.
         max: u64,
     },
+    /// Sync conflict between tools.
+    #[error("Conflict: skill '{name}' has divergent modifications in {tools}. Resolve manually.")]
+    SyncConflict {
+        /// Skill name with conflict.
+        name: String,
+        /// Tools with conflicting changes.
+        tools: String,
+    },
 }
 
 impl Error {

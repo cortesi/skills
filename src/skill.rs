@@ -28,6 +28,8 @@ pub struct SkillTemplate {
     pub(crate) skill_path: PathBuf,
     /// Raw template contents of the skill file.
     pub(crate) contents: String,
+    /// Modified time for the skill file.
+    pub(crate) modified: SystemTime,
 }
 
 /// Installed tool skill metadata and contents.
@@ -83,6 +85,10 @@ pub fn load_source_skill(
         }
     };
 
+    let modified = fs::metadata(&skill_path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
     Some(SkillTemplate {
         name: frontmatter.name,
         description: frontmatter.description,
@@ -90,6 +96,7 @@ pub fn load_source_skill(
         skill_dir: skill_dir.to_path_buf(),
         skill_path,
         contents,
+        modified,
     })
 }
 

@@ -159,6 +159,7 @@ mod tests {
             skill_dir: "/tmp/source/skill".into(),
             skill_path: "/tmp/source/skill/SKILL.md".into(),
             contents: "---\nname: sample\ndescription: desc\n---\n".to_string(),
+            modified: SystemTime::UNIX_EPOCH,
         }
     }
 

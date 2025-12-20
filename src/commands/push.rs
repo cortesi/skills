@@ -22,7 +22,9 @@ use crate::{
 pub async fn run(
     _color: ColorChoice,
     verbose: bool,
-    skill: Option<String>,
+    skill: String,
+    claude: bool,
+    codex: bool,
     dry_run: bool,
     force: bool,
 ) -> Result<()> {
@@ -30,30 +32,20 @@ pub async fn run(
     let mut diagnostics = Diagnostics::new(verbose);
     let config = Config::load()?;
     let catalog = Catalog::load(&config, &mut diagnostics);
-    let mut skills = select_skills(&catalog, skill.as_deref())?;
 
-    skills.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    let Some(template) = catalog.sources.get(&skill) else {
+        return Err(Error::SkillNotFound { name: skill });
+    };
 
-    if let Some(name) = skill {
-        println!("Pushing {name}...");
-        let Some(skill) = skills.first().copied() else {
-            return Err(Error::SkillNotFound { name });
-        };
-        let results = push_single_skill(&catalog, skill, dry_run, force, &mut diagnostics)?;
-        for result in results {
-            println!(
-                "  {:<6}: {} ({})",
-                result.tool_label, result.marker, result.summary
-            );
-        }
-    } else {
-        for tool in Tool::all() {
-            println!("Pushing {}...", tool.display_name());
-            let results = push_tool(&catalog, &skills, tool, dry_run, force, &mut diagnostics)?;
-            for result in results {
-                println!("  {} {} ({})", result.marker, result.name, result.summary);
-            }
-        }
+    let tools = select_tools(claude, codex);
+
+    println!("Pushing {skill}...");
+    let results = push_skill(&catalog, template, &tools, dry_run, force, &mut diagnostics)?;
+    for result in results {
+        println!(
+            "  {:<6}: {} ({})",
+            result.tool_label, result.marker, result.summary
+        );
     }
 
     diagnostics.print_skipped_summary();
@@ -61,78 +53,41 @@ pub async fn run(
     Ok(())
 }
 
-/// Push all skills for a single tool.
-fn push_tool(
-    catalog: &Catalog,
-    skills: &[&SkillTemplate],
-    tool: Tool,
-    dry_run: bool,
-    force: bool,
-    diagnostics: &mut Diagnostics,
-) -> Result<Vec<ToolPushLine>> {
-    let mut lines = Vec::new();
-    let tool_dir = tool.skills_dir()?;
-
-    for skill in skills.iter().copied() {
-        let rendered = match render_template(&skill.contents, tool) {
-            Ok(rendered) => rendered,
-            Err(error) => {
-                diagnostics.warn_skipped(&skill.skill_path, error);
-                continue;
-            }
-        };
-
-        let tool_map = catalog.tools.get(&tool);
-        let tool_skill = tool_map.and_then(|skills| skills.get(&skill.name));
-        let existing = tool_skill.map(|installed| &installed.contents);
-
-        let status = match existing {
-            None => PushStatus::New,
-            Some(contents) => {
-                if normalize_line_endings(&rendered) == normalize_line_endings(contents) {
-                    PushStatus::Unchanged
-                } else {
-                    PushStatus::Modified
-                }
-            }
-        };
-
-        let request = PushRequest {
-            skill,
-            tool,
-            tool_dir: &tool_dir,
-            rendered: &rendered,
-            status,
-        };
-        let result = apply_push(&request, dry_run, force)?;
-
-        lines.push(ToolPushLine {
-            marker: result.marker,
-            name: skill.name.clone(),
-            summary: result.summary,
-        });
+/// Select tools based on CLI flags.
+fn select_tools(claude: bool, codex: bool) -> Vec<Tool> {
+    if !claude && !codex {
+        // Default: all tools
+        Tool::all().to_vec()
+    } else {
+        let mut tools = Vec::new();
+        if claude {
+            tools.push(Tool::Claude);
+        }
+        if codex {
+            tools.push(Tool::Codex);
+        }
+        tools
     }
-
-    Ok(lines)
 }
 
-/// Push a single skill across all tools.
-fn push_single_skill(
+/// Push a skill to specified tools.
+fn push_skill(
     catalog: &Catalog,
     skill: &SkillTemplate,
+    tools: &[Tool],
     dry_run: bool,
     force: bool,
     diagnostics: &mut Diagnostics,
-) -> Result<Vec<SinglePushLine>> {
+) -> Result<Vec<PushLine>> {
     let mut results = Vec::new();
 
-    for tool in Tool::all() {
+    for &tool in tools {
         let tool_dir = tool.skills_dir()?;
         let rendered = match render_template(&skill.contents, tool) {
             Ok(rendered) => rendered,
             Err(error) => {
                 diagnostics.warn_skipped(&skill.skill_path, error);
-                results.push(SinglePushLine {
+                results.push(PushLine {
                     tool_label: tool.id().to_string(),
                     marker: '!',
                     summary: "skipped".to_string(),
@@ -164,7 +119,7 @@ fn push_single_skill(
         };
         let result = apply_push(&request, dry_run, force)?;
 
-        results.push(SinglePushLine {
+        results.push(PushLine {
             tool_label: tool.id().to_string(),
             marker: result.marker,
             summary: result.summary,
@@ -172,20 +127,6 @@ fn push_single_skill(
     }
 
     Ok(results)
-}
-
-/// Select skills based on optional CLI filter.
-fn select_skills<'a>(catalog: &'a Catalog, skill: Option<&str>) -> Result<Vec<&'a SkillTemplate>> {
-    if let Some(skill) = skill {
-        let Some(template) = catalog.sources.get(skill) else {
-            return Err(Error::SkillNotFound {
-                name: skill.to_string(),
-            });
-        };
-        return Ok(vec![template]);
-    }
-
-    Ok(catalog.sources.values().collect())
 }
 
 /// Request parameters for a push operation.
@@ -213,18 +154,8 @@ enum PushStatus {
     Modified,
 }
 
-/// Output line for tool push summary.
-struct ToolPushLine {
-    /// Summary marker.
-    marker: char,
-    /// Skill name.
-    name: String,
-    /// Summary label.
-    summary: String,
-}
-
-/// Output line for single-skill push summary.
-struct SinglePushLine {
+/// Output line for push summary.
+struct PushLine {
     /// Tool label.
     tool_label: String,
     /// Output marker.
