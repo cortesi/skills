@@ -17,6 +17,8 @@ mod diff;
 mod error;
 /// YAML frontmatter parsing for skills.
 mod frontmatter;
+/// Color palette and styling for CLI output.
+mod palette;
 /// Path expansion and normalization utilities.
 mod paths;
 /// Skill loading and templating helpers.

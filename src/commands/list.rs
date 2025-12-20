@@ -2,7 +2,6 @@
 
 use std::{collections::HashSet, env, path::Path};
 
-use owo_colors::OwoColorize;
 use textwrap::{Options, wrap};
 
 use crate::{
@@ -11,11 +10,20 @@ use crate::{
     config::Config,
     diagnostics::Diagnostics,
     error::Result,
+    palette::{
+        fmt_description, fmt_heading, fmt_label, fmt_path, fmt_skill_name, fmt_tool_tag,
+        fmt_warning, fmt_warning_heading, status_error, status_modified, status_synced,
+    },
     paths::display_path,
     skill::LocalSkill,
     status::{SkillEntry, SyncStatus, build_entries},
     tool::Tool,
 };
+
+/// Indent for subordinate information.
+const INDENT: &str = "    ";
+/// Double indent for nested subordinate information.
+const INDENT2: &str = "        ";
 
 /// Execute the list command.
 pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
@@ -37,55 +45,63 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
         let claude = format_status(status_for_tool(entry, Tool::Claude), use_color);
         let codex = format_status(status_for_tool(entry, Tool::Codex), use_color);
 
-        println!("{}", entry.name);
-        println!("{}", wrap_text(description, "  "));
-        println!("  source: {}", source_path);
-        println!("  claude: {:<9} codex: {:<9}", claude, codex);
-        println!();
+        println!("{}", fmt_skill_name(&entry.name, use_color));
+        println!(
+            "{}{} {}",
+            INDENT,
+            fmt_label("source:", use_color),
+            fmt_path(&source_path, use_color)
+        );
+        println!(
+            "{}{} {:<9} {} {:<9}",
+            INDENT,
+            fmt_label("claude:", use_color),
+            claude,
+            fmt_label("codex:", use_color),
+            codex
+        );
+        println!("{}", wrap_styled(description, INDENT, use_color));
     }
 
     // Collect and print local skills
     let local_skills = collect_local_skills(&catalog);
     let cwd = env::current_dir().ok();
     if !local_skills.is_empty() {
-        if use_color {
-            println!("{}", "Local Skills:".bold());
-        } else {
-            println!("Local Skills:");
+        if !entries.is_empty() {
+            println!();
         }
-        println!();
+        println!("{}", fmt_heading("Local Skills:", use_color));
         for skill in &local_skills {
             let tool_label = format!("[{}]", skill.tool.id());
             let path_display = display_relative_path(&skill.skill_dir, cwd.as_deref());
-            println!("  {} {}", skill.name, tool_label.dimmed());
-            println!("{}", wrap_text(&skill.description, "    "));
-            println!("    path: {}", path_display);
-            println!();
+            println!(
+                "{}{} {}",
+                INDENT,
+                fmt_skill_name(&skill.name, use_color),
+                fmt_tool_tag(&tool_label, use_color)
+            );
+            println!("{}", wrap_styled(&skill.description, INDENT2, use_color));
+            println!(
+                "{}{} {}",
+                INDENT2,
+                fmt_label("path:", use_color),
+                fmt_path(&path_display, use_color)
+            );
         }
     }
 
     // Print conflicts between local and global skills
     let conflicts = find_conflicts(&catalog);
     if !conflicts.is_empty() {
-        if use_color {
-            println!("{}", "Conflicts:".bold().yellow());
-        } else {
-            println!("Conflicts:");
-        }
         println!();
+        println!("{}", fmt_warning_heading("Conflicts:", use_color));
         for (name, tool) in &conflicts {
             let warning = format!(
-                "  ⚠ '{}' exists locally and in {} global skills",
-                name,
-                tool.id()
+                "{}⚠ '{}' exists locally and in {} global skills",
+                INDENT, name, tool.id()
             );
-            if use_color {
-                println!("{}", warning.yellow());
-            } else {
-                println!("{}", warning);
-            }
-            println!("    Local takes precedence in this project");
-            println!();
+            println!("{}", fmt_warning(&warning, use_color));
+            println!("{}Local takes precedence in this project", INDENT2);
         }
     }
 
@@ -109,7 +125,9 @@ fn status_for_tool(entry: &SkillEntry, tool: Tool) -> SyncStatus {
 }
 
 /// Format a status string with optional color.
-fn format_status(status: SyncStatus, color: bool) -> String {
+fn format_status(status: SyncStatus, use_color: bool) -> String {
+    use owo_colors::OwoColorize;
+
     let label = match status {
         SyncStatus::Synced => "synced",
         SyncStatus::Modified => "modified",
@@ -117,15 +135,15 @@ fn format_status(status: SyncStatus, color: bool) -> String {
         SyncStatus::Orphan => "orphan",
     };
 
-    if !color {
+    if !use_color {
         return label.to_string();
     }
 
     match status {
-        SyncStatus::Synced => label.green().to_string(),
-        SyncStatus::Modified => label.yellow().to_string(),
-        SyncStatus::Missing => label.red().to_string(),
-        SyncStatus::Orphan => label.red().to_string(),
+        SyncStatus::Synced => label.style(status_synced()).to_string(),
+        SyncStatus::Modified => label.style(status_modified()).to_string(),
+        SyncStatus::Missing => label.style(status_error()).to_string(),
+        SyncStatus::Orphan => label.style(status_error()).to_string(),
     }
 }
 
@@ -162,14 +180,14 @@ fn find_conflicts(catalog: &Catalog) -> Vec<(String, Tool)> {
 /// Maximum width for wrapped text.
 const WRAP_WIDTH: usize = 80;
 
-/// Wrap text to a given width with an indent prefix.
-fn wrap_text(text: &str, indent: &str) -> String {
+/// Wrap text to a given width with an indent prefix and optional styling.
+fn wrap_styled(text: &str, indent: &str, use_color: bool) -> String {
     let options = Options::new(WRAP_WIDTH.saturating_sub(indent.len()))
         .initial_indent("")
         .subsequent_indent("");
     wrap(text, options)
         .iter()
-        .map(|line| format!("{}{}", indent, line))
+        .map(|line| format!("{}{}", indent, fmt_description(line, use_color)))
         .collect::<Vec<_>>()
         .join("\n")
 }
