@@ -24,6 +24,7 @@ impl ColorChoice {
     }
 }
 
+// Command modules are ordered alphabetically - maintain this order.
 /// Diff command implementation.
 pub mod diff;
 /// Import command implementation.
@@ -40,5 +41,7 @@ pub mod pack;
 pub mod pull;
 /// Push command implementation.
 pub mod push;
+/// Show command implementation.
+pub mod show;
 /// Uplift command implementation.
 pub mod uplift;
