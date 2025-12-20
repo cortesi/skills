@@ -50,10 +50,6 @@ pub struct LocalSkill {
     pub(crate) tool: Tool,
     /// Directory containing the skill file.
     pub(crate) skill_dir: PathBuf,
-    /// Path to the skill file.
-    pub(crate) skill_path: PathBuf,
-    /// Raw contents of the skill file.
-    pub(crate) contents: String,
 }
 
 /// Load a source skill from a directory if present.
@@ -158,8 +154,6 @@ pub fn load_local_skill(
         name: frontmatter.name,
         tool,
         skill_dir: skill_dir.to_path_buf(),
-        skill_path,
-        contents,
     })
 }
 

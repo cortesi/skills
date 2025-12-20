@@ -185,6 +185,56 @@ pub enum Error {
         /// Ambiguous skill name.
         name: String,
     },
+    /// Failed to create a ZIP archive.
+    #[error("Failed to create ZIP archive at {path}: {message}")]
+    ZipCreate {
+        /// Path to the ZIP file.
+        path: PathBuf,
+        /// Error message.
+        message: String,
+    },
+    /// Failed to read a ZIP archive.
+    #[error("Failed to read ZIP archive at {path}: {message}")]
+    ZipRead {
+        /// Path to the ZIP file.
+        path: PathBuf,
+        /// Error message.
+        message: String,
+    },
+    /// Invalid ZIP structure.
+    #[error("Invalid ZIP file: {message}")]
+    InvalidZip {
+        /// Error message describing the invalid structure.
+        message: String,
+    },
+    /// Failed to download from URL.
+    #[error("Failed to download from {url}: {message}")]
+    Download {
+        /// URL that failed.
+        url: String,
+        /// Error message.
+        message: String,
+    },
+    /// Invalid URL.
+    #[error("Invalid URL: {url}")]
+    InvalidUrl {
+        /// The invalid URL.
+        url: String,
+    },
+    /// HTTP URL not allowed.
+    #[error("HTTP URLs not allowed for security. Use HTTPS: {url}")]
+    HttpNotAllowed {
+        /// The HTTP URL.
+        url: String,
+    },
+    /// File too large.
+    #[error("File too large: {size} bytes (max {max} bytes)")]
+    FileTooLarge {
+        /// Actual size.
+        size: u64,
+        /// Maximum allowed size.
+        max: u64,
+    },
 }
 
 impl Error {

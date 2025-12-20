@@ -26,12 +26,16 @@ impl ColorChoice {
 
 /// Diff command implementation.
 pub mod diff;
+/// Import command implementation.
+pub mod import;
 /// Init command implementation.
 pub mod init;
 /// List command implementation.
 pub mod list;
 /// New command implementation.
 pub mod new;
+/// Pack command implementation.
+pub mod pack;
 /// Pull command implementation.
 pub mod pull;
 /// Push command implementation.

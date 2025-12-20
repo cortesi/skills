@@ -86,6 +86,55 @@ enum Command {
         #[arg(long)]
         tool: Option<String>,
     },
+    /// Package skills into ZIP files for sharing.
+    Pack {
+        /// Names of skills to pack.
+        #[arg(required = true)]
+        skills: Vec<String>,
+        /// Output directory for ZIP files.
+        #[arg(long, short = 'o')]
+        output: Option<PathBuf>,
+        /// Pack from local project skills instead of sources.
+        #[arg(long)]
+        local: bool,
+        /// Preview what would be packed without creating files.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+        /// Overwrite existing ZIP files.
+        #[arg(long, short = 'f')]
+        force: bool,
+    },
+    /// Package all skills into ZIP files.
+    PackAll {
+        /// Output directory for ZIP files.
+        output: PathBuf,
+        /// Pack from local project skills instead of sources.
+        #[arg(long)]
+        local: bool,
+        /// Preview what would be packed without creating files.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+        /// Overwrite existing ZIP files.
+        #[arg(long, short = 'f')]
+        force: bool,
+    },
+    /// Import a skill from a ZIP file, URL, or GitHub.
+    Import {
+        /// Path to ZIP file, URL, or GitHub URL.
+        source: String,
+        /// Import to specific location: claude, codex, source, or path.
+        #[arg(long)]
+        to: Option<String>,
+        /// Import as local project skill.
+        #[arg(long)]
+        local: bool,
+        /// Overwrite existing skill without prompting.
+        #[arg(long, short = 'f')]
+        force: bool,
+        /// Preview what would be imported without extracting.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+    },
 }
 
 /// Run the requested command.
@@ -112,6 +161,26 @@ pub async fn run() -> Result<()> {
             force,
             tool,
         } => commands::uplift::run(color, cli.verbose, skill, dry_run, force, tool).await,
+        Command::Pack {
+            skills,
+            output,
+            local,
+            dry_run,
+            force,
+        } => commands::pack::run(color, cli.verbose, skills, output, local, dry_run, force).await,
+        Command::PackAll {
+            output,
+            local,
+            dry_run,
+            force,
+        } => commands::pack::run_all(color, cli.verbose, output, local, dry_run, force).await,
+        Command::Import {
+            source,
+            to,
+            local,
+            force,
+            dry_run,
+        } => commands::import::run(color, cli.verbose, source, to, local, force, dry_run).await,
     }
 }
 

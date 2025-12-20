@@ -158,14 +158,14 @@ fn find_conflicts(catalog: &Catalog) -> Vec<(String, Tool)> {
 
 /// Display a path relative to cwd if it's under cwd, otherwise use display_path.
 fn display_relative_path(path: &Path, cwd: Option<&Path>) -> String {
-    if let Some(cwd) = cwd {
-        if let Ok(relative) = path.strip_prefix(cwd) {
-            let rel_str = relative.display().to_string();
-            if rel_str.is_empty() {
-                return ".".to_string();
-            }
-            return format!("./{}", rel_str);
+    if let Some(cwd) = cwd
+        && let Ok(relative) = path.strip_prefix(cwd)
+    {
+        let rel_str = relative.display().to_string();
+        if rel_str.is_empty() {
+            return ".".to_string();
         }
+        return format!("./{}", rel_str);
     }
     display_path(path)
 }
