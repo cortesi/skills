@@ -22,24 +22,65 @@ use crate::{
 /// Indent for subordinate information.
 const INDENT: &str = "    ";
 
+/// Conflict resolution strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictResolution {
+    /// Error on conflict (default).
+    Error,
+    /// Prefer source version.
+    PreferSource,
+    /// Prefer tool version (newest).
+    PreferTool,
+}
+
 /// Execute the sync command.
-pub async fn run(color: ColorChoice, verbose: bool, dry_run: bool) -> Result<()> {
+pub async fn run(
+    color: ColorChoice,
+    verbose: bool,
+    skills: Vec<String>,
+    prefer_source: bool,
+    prefer_tool: bool,
+    dry_run: bool,
+) -> Result<()> {
     init::ensure().await?;
     let mut diagnostics = Diagnostics::new(verbose);
     let config = Config::load()?;
     let catalog = Catalog::load(&config, &mut diagnostics);
     let use_color = color.enabled();
 
-    // Build sync plans for all skills
-    let plans = build_sync_plans(&catalog, &mut diagnostics)?;
+    // Determine conflict resolution strategy
+    let resolution = if prefer_source {
+        ConflictResolution::PreferSource
+    } else if prefer_tool {
+        ConflictResolution::PreferTool
+    } else {
+        ConflictResolution::Error
+    };
+
+    // Validate specified skills exist
+    if !skills.is_empty() {
+        for name in &skills {
+            if !catalog.sources.contains_key(name) {
+                return Err(Error::SkillNotFound { name: name.clone() });
+            }
+        }
+    }
+
+    // Build sync plans for skills
+    let mut plans = build_sync_plans(&catalog, &mut diagnostics)?;
+
+    // Filter to specified skills if any
+    if !skills.is_empty() {
+        plans.retain(|p| skills.contains(&p.name));
+    }
 
     if plans.is_empty() {
         println!("All skills are in sync.");
         return Ok(());
     }
 
-    // Check for conflicts first
-    check_conflicts(&plans)?;
+    // Handle conflicts based on resolution strategy
+    handle_conflicts(&mut plans, resolution)?;
 
     // Apply sync operations
     let mut push_count = 0;
@@ -267,9 +308,9 @@ fn determine_action(source: &SkillTemplate, tool_skills: &HashMap<Tool, ToolSkil
     }
 }
 
-/// Check for conflicts where tools have divergent modifications.
-fn check_conflicts(plans: &[SyncPlan]) -> Result<()> {
-    for plan in plans {
+/// Handle conflicts based on resolution strategy.
+fn handle_conflicts(plans: &mut Vec<SyncPlan>, resolution: ConflictResolution) -> Result<()> {
+    for plan in plans.iter_mut() {
         if plan.tool_skills.len() < 2 {
             continue;
         }
@@ -278,10 +319,22 @@ fn check_conflicts(plans: &[SyncPlan]) -> Result<()> {
         let skills: Vec<_> = plan.tool_skills.values().collect();
         let first_contents = normalize_line_endings(&skills[0].contents);
 
+        let mut has_conflict = false;
         for skill in skills.iter().skip(1) {
             let contents = normalize_line_endings(&skill.contents);
             if contents != first_contents {
-                // Tools have divergent modifications
+                has_conflict = true;
+                break;
+            }
+        }
+
+        if !has_conflict {
+            continue;
+        }
+
+        // Tools have divergent modifications - handle based on resolution strategy
+        match resolution {
+            ConflictResolution::Error => {
                 let tools: Vec<_> = plan
                     .tool_skills
                     .keys()
@@ -291,6 +344,37 @@ fn check_conflicts(plans: &[SyncPlan]) -> Result<()> {
                     name: plan.name.clone(),
                     tools: tools.join(" and "),
                 });
+            }
+            ConflictResolution::PreferSource => {
+                // Push source to all tools
+                plan.action = SyncAction::Push {
+                    to_tools: plan.tool_skills.keys().copied().collect(),
+                };
+            }
+            ConflictResolution::PreferTool => {
+                // Find newest tool and pull from it, push to others
+                let newest_tool = plan
+                    .tool_skills
+                    .iter()
+                    .max_by_key(|(_, s)| s.modified)
+                    .map(|(t, _)| *t)
+                    .unwrap();
+
+                let other_tools: Vec<Tool> = plan
+                    .tool_skills
+                    .keys()
+                    .filter(|t| **t != newest_tool)
+                    .copied()
+                    .collect();
+
+                if other_tools.is_empty() {
+                    plan.action = SyncAction::Pull { from_tool: newest_tool };
+                } else {
+                    plan.action = SyncAction::PullAndPush {
+                        from_tool: newest_tool,
+                        to_tools: other_tools,
+                    };
+                }
             }
         }
     }

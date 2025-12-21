@@ -243,6 +243,20 @@ pub enum Error {
         /// Tools with conflicting changes.
         tools: String,
     },
+    /// Failed to launch the editor.
+    #[error("Failed to run editor `{editor}`: {message}")]
+    EditorFailed {
+        /// Editor command that failed.
+        editor: String,
+        /// Error message.
+        message: String,
+    },
+    /// Validation failed.
+    #[error("Validation failed: {message}")]
+    ValidationFailed {
+        /// Error message describing the validation failure.
+        message: String,
+    },
 }
 
 impl Error {

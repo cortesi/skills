@@ -27,25 +27,33 @@ impl ColorChoice {
 // Command modules are ordered alphabetically - maintain this order.
 /// Diff command implementation.
 pub mod diff;
+/// Edit command implementation.
+pub mod edit;
 /// Import command implementation.
 pub mod import;
 /// Init command implementation.
 pub mod init;
 /// List command implementation.
 pub mod list;
+/// Mv command implementation.
+pub mod mv;
 /// New command implementation.
 pub mod new;
 /// Pack command implementation.
 pub mod pack;
+/// Promote command implementation.
+pub mod promote;
 /// Pull command implementation.
 pub mod pull;
 /// Push command implementation.
 pub mod push;
+/// Render command implementation.
+pub mod render;
 /// Show command implementation.
 pub mod show;
 /// Sync command implementation.
 pub mod sync;
 /// Unload command implementation.
 pub mod unload;
-/// Uplift command implementation.
-pub mod uplift;
+/// Validate command implementation.
+pub mod validate;

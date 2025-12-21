@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use clap::ValueEnum;
+
 use crate::error::{Error, Result};
 
 /// Supported tool targets.
@@ -11,6 +13,28 @@ pub enum Tool {
     Claude,
     /// OpenAI Codex skills.
     Codex,
+}
+
+/// Tool filter for CLI commands.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum ToolFilter {
+    /// Claude Code only.
+    Claude,
+    /// Codex only.
+    Codex,
+    /// All tools.
+    All,
+}
+
+impl ToolFilter {
+    /// Convert filter to list of tools.
+    pub fn to_tools(self) -> Vec<Tool> {
+        match self {
+            Self::Claude => vec![Tool::Claude],
+            Self::Codex => vec![Tool::Codex],
+            Self::All => Tool::all().to_vec(),
+        }
+    }
 }
 
 impl Tool {

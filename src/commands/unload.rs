@@ -8,7 +8,7 @@ use crate::{
     commands::{ColorChoice, init},
     error::{Error, Result},
     skill::SKILL_FILE_NAME,
-    tool::Tool,
+    tool::ToolFilter,
 };
 
 /// Execute the unload command.
@@ -16,14 +16,13 @@ pub async fn run(
     _color: ColorChoice,
     _verbose: bool,
     skill: String,
-    claude: bool,
-    codex: bool,
+    tool_filter: ToolFilter,
     dry_run: bool,
     force: bool,
 ) -> Result<()> {
     init::ensure().await?;
 
-    let tools = select_tools(claude, codex);
+    let tools = tool_filter.to_tools();
     let mut found_any = false;
 
     println!("Unloading {}...", skill);
@@ -70,22 +69,6 @@ pub async fn run(
     Ok(())
 }
 
-/// Select tools based on CLI flags.
-fn select_tools(claude: bool, codex: bool) -> Vec<Tool> {
-    if !claude && !codex {
-        // Default: all tools
-        Tool::all().to_vec()
-    } else {
-        let mut tools = Vec::new();
-        if claude {
-            tools.push(Tool::Claude);
-        }
-        if codex {
-            tools.push(Tool::Codex);
-        }
-        tools
-    }
-}
 
 /// Prompt for confirmation.
 fn confirm(message: &str) -> Result<bool> {

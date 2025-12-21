@@ -1,4 +1,4 @@
-//! Implementation of the `skills uplift` command.
+//! Implementation of the `skills promote` command.
 
 use std::fs;
 
@@ -12,17 +12,17 @@ use crate::{
     error::{Error, Result},
     paths::display_path,
     skill::LocalSkill,
-    tool::Tool,
+    tool::{Tool, ToolFilter},
 };
 
-/// Execute the uplift command.
+/// Execute the promote command.
 pub async fn run(
     color: ColorChoice,
     verbose: bool,
     skill_name: String,
+    tool_filter: Option<ToolFilter>,
     dry_run: bool,
     force: bool,
-    tool_filter: Option<String>,
 ) -> Result<()> {
     init::ensure().await?;
     let mut diagnostics = Diagnostics::new(verbose);
@@ -30,15 +30,11 @@ pub async fn run(
     let catalog = Catalog::load(&config, &mut diagnostics);
     let use_color = color.enabled();
 
-    // Parse tool filter if provided
+    // Convert ToolFilter to Option<Tool> for filtering
     let tool_filter: Option<Tool> = match tool_filter {
-        Some(ref t) if t == "claude" => Some(Tool::Claude),
-        Some(ref t) if t == "codex" => Some(Tool::Codex),
-        Some(ref t) => {
-            eprintln!("Unknown tool '{}'. Use 'claude' or 'codex'.", t);
-            return Ok(());
-        }
-        None => None,
+        Some(ToolFilter::Claude) => Some(Tool::Claude),
+        Some(ToolFilter::Codex) => Some(Tool::Codex),
+        Some(ToolFilter::All) | None => None,
     };
 
     // Find matching local skills
@@ -66,7 +62,7 @@ pub async fn run(
         }
 
         // Print what we're doing
-        let action = if dry_run { "Would uplift" } else { "Uplifting" };
+        let action = if dry_run { "Would promote" } else { "Promoting" };
         let from = display_path(&skill.skill_dir);
         let to = display_path(&target_skill_dir);
 

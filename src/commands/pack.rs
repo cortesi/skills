@@ -32,10 +32,12 @@ struct PackResult {
 }
 
 /// Execute the pack command for specific skills.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     color: ColorChoice,
     verbose: bool,
     skill_names: Vec<String>,
+    all: bool,
     output: Option<PathBuf>,
     local: bool,
     dry_run: bool,
@@ -59,6 +61,11 @@ pub async fn run(
                 source: e,
             })?;
         }
+    }
+
+    // If --all or no skills specified, pack all skills
+    if all || skill_names.is_empty() {
+        return pack_all(&catalog, &output_dir, dry_run, force, use_color, local, &mut diagnostics);
     }
 
     if skill_names.len() == 1 {

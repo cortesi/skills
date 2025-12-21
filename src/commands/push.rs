@@ -6,6 +6,7 @@ use std::{
 };
 
 use inquire::{Confirm, error::InquireError};
+use similar::{ChangeTag, TextDiff};
 
 use crate::{
     catalog::Catalog,
@@ -13,38 +14,118 @@ use crate::{
     config::Config,
     diagnostics::Diagnostics,
     error::{Error, Result},
+    palette::{fmt_label, fmt_skill_name},
     skill::{SKILL_FILE_NAME, SkillTemplate, render_template},
     status::normalize_line_endings,
-    tool::Tool,
+    tool::{Tool, ToolFilter},
 };
 
 /// Execute the push command.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
-    _color: ColorChoice,
+    color: ColorChoice,
     verbose: bool,
-    skill: String,
-    claude: bool,
-    codex: bool,
+    skills: Vec<String>,
+    all: bool,
+    tool_filter: ToolFilter,
     dry_run: bool,
     force: bool,
+    yes: bool,
 ) -> Result<()> {
     init::ensure().await?;
     let mut diagnostics = Diagnostics::new(verbose);
     let config = Config::load()?;
     let catalog = Catalog::load(&config, &mut diagnostics);
+    let use_color = color.enabled();
 
-    let Some(template) = catalog.sources.get(&skill) else {
-        return Err(Error::SkillNotFound { name: skill });
+    let tools = tool_filter.to_tools();
+
+    // Determine which skills to push
+    let skill_names: Vec<String> = if all {
+        // Push all source skills
+        catalog.sources.keys().cloned().collect()
+    } else if skills.is_empty() {
+        // No skills specified - find out-of-sync skills and confirm
+        let out_of_sync = find_out_of_sync_skills(&catalog, &tools, &mut diagnostics);
+        if out_of_sync.is_empty() {
+            println!("All skills are in sync.");
+            return Ok(());
+        }
+        if !force && !dry_run {
+            println!("Skills needing push:");
+            for name in &out_of_sync {
+                println!("  {}", fmt_skill_name(name, use_color));
+            }
+            println!();
+            let prompt = format!("Push {} skill(s)?", out_of_sync.len());
+            if !confirm(&prompt)? {
+                println!("Aborted.");
+                return Ok(());
+            }
+            println!();
+        }
+        out_of_sync
+    } else {
+        // Validate that all specified skills exist
+        for name in &skills {
+            if !catalog.sources.contains_key(name) {
+                return Err(Error::SkillNotFound { name: name.clone() });
+            }
+        }
+        skills
     };
 
-    let tools = select_tools(claude, codex);
+    if skill_names.is_empty() {
+        println!("No skills to push.");
+        return Ok(());
+    }
 
-    println!("Pushing {skill}...");
-    let results = push_skill(&catalog, template, &tools, dry_run, force, &mut diagnostics)?;
-    for result in results {
+    // Sort skills for consistent output
+    let mut skill_names = skill_names;
+    skill_names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+
+    let total = skill_names.len();
+    let mut pushed_count = 0;
+    let mut skipped_count = 0;
+
+    for name in &skill_names {
+        let template = catalog.sources.get(name).unwrap();
+        let results = push_skill(&catalog, template, &tools, dry_run, force, yes, use_color, &mut diagnostics)?;
+
+        // Check if any actual push happened
+        let any_pushed = results.iter().any(|r| r.marker == '+' || r.marker == '~');
+        let any_skipped = results.iter().any(|r| r.marker == '!');
+
+        if any_pushed {
+            pushed_count += 1;
+        }
+        if any_skipped {
+            skipped_count += 1;
+        }
+
+        // Print results
+        println!("{}", fmt_skill_name(name, use_color));
+        for result in results {
+            println!(
+                "    {:<6}: {} ({})",
+                result.tool_label, result.marker, result.summary
+            );
+        }
+    }
+
+    println!();
+    if dry_run {
         println!(
-            "  {:<6}: {} ({})",
-            result.tool_label, result.marker, result.summary
+            "{} {} skill(s) would be pushed.",
+            fmt_label("Dry run:", use_color),
+            total
+        );
+    } else {
+        println!(
+            "{} {} pushed, {} skipped.",
+            fmt_label("Done:", use_color),
+            pushed_count,
+            skipped_count
         );
     }
 
@@ -53,30 +134,62 @@ pub async fn run(
     Ok(())
 }
 
-/// Select tools based on CLI flags.
-fn select_tools(claude: bool, codex: bool) -> Vec<Tool> {
-    if !claude && !codex {
-        // Default: all tools
-        Tool::all().to_vec()
-    } else {
-        let mut tools = Vec::new();
-        if claude {
-            tools.push(Tool::Claude);
+/// Find skills that are out of sync (source differs from at least one tool).
+fn find_out_of_sync_skills(
+    catalog: &Catalog,
+    tools: &[Tool],
+    diagnostics: &mut Diagnostics,
+) -> Vec<String> {
+    let mut out_of_sync = Vec::new();
+
+    for (name, source) in &catalog.sources {
+        for &tool in tools {
+            let tool_map = catalog.tools.get(&tool);
+            let tool_skill = tool_map.and_then(|skills| skills.get(name));
+
+            // Render the template for this tool
+            let rendered = match render_template(&source.contents, tool) {
+                Ok(rendered) => rendered,
+                Err(error) => {
+                    diagnostics.warn_skipped(&source.skill_path, error);
+                    continue;
+                }
+            };
+
+            match tool_skill {
+                None => {
+                    // Skill missing from tool
+                    out_of_sync.push(name.clone());
+                    break;
+                }
+                Some(installed) => {
+                    if normalize_line_endings(&rendered)
+                        != normalize_line_endings(&installed.contents)
+                    {
+                        // Skill differs
+                        out_of_sync.push(name.clone());
+                        break;
+                    }
+                }
+            }
         }
-        if codex {
-            tools.push(Tool::Codex);
-        }
-        tools
     }
+
+    out_of_sync.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    out_of_sync
 }
 
+
 /// Push a skill to specified tools.
+#[allow(clippy::too_many_arguments)]
 fn push_skill(
     catalog: &Catalog,
     skill: &SkillTemplate,
     tools: &[Tool],
     dry_run: bool,
     force: bool,
+    yes: bool,
+    use_color: bool,
     diagnostics: &mut Diagnostics,
 ) -> Result<Vec<PushLine>> {
     let mut results = Vec::new();
@@ -98,8 +211,8 @@ fn push_skill(
 
         let tool_map = catalog.tools.get(&tool);
         let tool_skill = tool_map.and_then(|skills| skills.get(&skill.name));
-        let existing = tool_skill.map(|installed| &installed.contents);
-        let status = match existing {
+        let existing = tool_skill.map(|installed| installed.contents.clone());
+        let status = match &existing {
             None => PushStatus::New,
             Some(contents) => {
                 if normalize_line_endings(&rendered) == normalize_line_endings(contents) {
@@ -115,9 +228,10 @@ fn push_skill(
             tool,
             tool_dir: &tool_dir,
             rendered: &rendered,
+            existing: existing.as_deref(),
             status,
         };
-        let result = apply_push(&request, dry_run, force)?;
+        let result = apply_push(&request, dry_run, force, yes, use_color)?;
 
         results.push(PushLine {
             tool_label: tool.id().to_string(),
@@ -139,6 +253,8 @@ struct PushRequest<'a> {
     tool_dir: &'a PathBuf,
     /// Rendered template content.
     rendered: &'a str,
+    /// Existing content in tool (if any).
+    existing: Option<&'a str>,
     /// Precomputed push status.
     status: PushStatus,
 }
@@ -173,7 +289,13 @@ struct PushResult {
 }
 
 /// Apply push logic and write skill files if needed.
-fn apply_push(request: &PushRequest<'_>, dry_run: bool, force: bool) -> Result<PushResult> {
+fn apply_push(
+    request: &PushRequest<'_>,
+    dry_run: bool,
+    force: bool,
+    yes: bool,
+    use_color: bool,
+) -> Result<PushResult> {
     match request.status {
         PushStatus::Unchanged => Ok(PushResult {
             marker: '=',
@@ -189,22 +311,38 @@ fn apply_push(request: &PushRequest<'_>, dry_run: bool, force: bool) -> Result<P
             })
         }
         PushStatus::Modified => {
-            if !force && !dry_run {
-                let prompt = format!(
-                    "Overwrite modified skill '{}' in {}?",
-                    request.skill.name,
-                    request.tool.display_name()
-                );
-                let confirmed = confirm(&prompt)?;
-                if !confirmed {
-                    return Ok(PushResult {
-                        marker: '!',
-                        summary: "skipped".to_string(),
-                    });
-                }
-            }
-
             if !dry_run {
+                // Always prompt unless --yes is specified
+                let skip_prompt = force && yes;
+
+                if !skip_prompt {
+                    // Show diff if force is specified (so user sees what's changing)
+                    if force {
+                        if let Some(existing) = request.existing {
+                            println!();
+                            println!(
+                                "Diff for '{}' in {}:",
+                                request.skill.name,
+                                request.tool.display_name()
+                            );
+                            print_diff(existing, request.rendered, use_color);
+                        }
+                    }
+
+                    let prompt = format!(
+                        "Overwrite modified skill '{}' in {}?",
+                        request.skill.name,
+                        request.tool.display_name()
+                    );
+                    let confirmed = confirm(&prompt)?;
+                    if !confirmed {
+                        return Ok(PushResult {
+                            marker: '!',
+                            summary: "skipped".to_string(),
+                        });
+                    }
+                }
+
                 write_tool_skill(request.tool_dir, &request.skill.name, request.rendered)?;
             }
 
@@ -214,6 +352,32 @@ fn apply_push(request: &PushRequest<'_>, dry_run: bool, force: bool) -> Result<P
             })
         }
     }
+}
+
+/// Print a unified diff between two strings.
+fn print_diff(old: &str, new: &str, use_color: bool) {
+    use owo_colors::OwoColorize;
+
+    let diff = TextDiff::from_lines(old, new);
+
+    for change in diff.iter_all_changes() {
+        let sign = match change.tag() {
+            ChangeTag::Delete => "-",
+            ChangeTag::Insert => "+",
+            ChangeTag::Equal => " ",
+        };
+
+        if use_color {
+            match change.tag() {
+                ChangeTag::Delete => print!("{}", format!("{}{}", sign, change).red()),
+                ChangeTag::Insert => print!("{}", format!("{}{}", sign, change).green()),
+                ChangeTag::Equal => print!(" {}", change),
+            }
+        } else {
+            print!("{}{}", sign, change);
+        }
+    }
+    println!();
 }
 
 /// Prompt for confirmation.
