@@ -14,11 +14,15 @@ so you can maintain skills in one place (your dotfiles, a team repo) and push th
 - **Team sharing** — Point everyone at a shared repo; they all get the same skills
 - **Version control** — Skills live in git, so you get history and can roll back
 
-## Quick Start
+## Install
 
 ```bash
 cargo install skills
+```
 
+## Quick Start
+
+```bash
 skills init          # Set up ~/.skills.toml
 skills list          # See what you have
 skills push          # Push skills to your tools
