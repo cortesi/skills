@@ -1,4 +1,5 @@
-# Skills
+![Discord](https://img.shields.io/discord/1381424110831145070?style=flat-square&logo=rust&link=https%3A%2F%2Fdiscord.gg%2FfHmRmuBDxF)
+[![Crates.io](https://img.shields.io/crates/v/skills)](https://crates.io/crates/skills)
 
 A CLI for managing AI coding assistant skills from a single source.
 
@@ -150,6 +151,13 @@ skills render my-skill --tool claude
 |------|------------------|---------------|
 | Claude Code | `~/.claude/skills/` | [docs](https://code.claude.com/docs/en/skills) |
 | Codex | `~/.codex/skills/` | [docs](https://github.com/openai/codex/blob/main/docs/skills.md) |
+
+
+## Community
+
+Want to contribute? Have ideas or feature requests? Come tell me about it on
+[Discord](https://discord.gg/fHmRmuBDxF). 
+
 
 ## License
 
