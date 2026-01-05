@@ -141,36 +141,12 @@ fn collect_names(catalog: &Catalog) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, time::SystemTime};
-
     use crate::{
-        catalog::Catalog,
         diagnostics::Diagnostics,
-        skill::{SkillTemplate, ToolSkill},
         status::{SyncStatus, build_entries, normalize_line_endings},
+        testutil::{TestFixture, simple_skill, skill_content},
         tool::Tool,
     };
-
-    fn sample_skill_template(name: &str) -> SkillTemplate {
-        SkillTemplate {
-            name: name.to_string(),
-            description: "A sample skill".to_string(),
-            source_root: "/tmp/source".into(),
-            skill_dir: "/tmp/source/skill".into(),
-            skill_path: "/tmp/source/skill/SKILL.md".into(),
-            contents: "---\nname: sample\ndescription: desc\n---\n".to_string(),
-            modified: SystemTime::UNIX_EPOCH,
-        }
-    }
-
-    fn sample_tool_skill(name: &str, contents: &str) -> ToolSkill {
-        ToolSkill {
-            name: name.to_string(),
-            skill_path: "/tmp/tool/skill/SKILL.md".into(),
-            contents: contents.to_string(),
-            modified: SystemTime::UNIX_EPOCH,
-        }
-    }
 
     #[test]
     fn normalizes_line_endings() {
@@ -186,20 +162,14 @@ mod tests {
 
     #[test]
     fn reports_modified_status() {
-        let mut sources = HashMap::new();
-        sources.insert("sample".to_string(), sample_skill_template("sample"));
+        let source_content = skill_content("sample", "desc", "");
+        let tool_content = skill_content("sample", "desc", "extra");
 
-        let mut tool_map = HashMap::new();
-        tool_map.insert(
-            "sample".to_string(),
-            sample_tool_skill("sample", "---\nname: sample\ndescription: desc\n---\nextra"),
-        );
+        let fixture = TestFixture::new()
+            .with_source_skill("sample", &source_content)
+            .with_tool_skill(Tool::Codex, "sample", &tool_content);
 
-        let mut tools = HashMap::new();
-        tools.insert(Tool::Codex, tool_map);
-
-        let local = HashMap::new();
-        let catalog = Catalog { sources, tools, local };
+        let catalog = fixture.catalog();
         let mut diagnostics = Diagnostics::new(false);
         let entries = build_entries(&catalog, &mut diagnostics);
 
@@ -218,14 +188,84 @@ mod tests {
     }
 
     #[test]
-    fn orders_entries_case_insensitively() {
-        let mut sources = HashMap::new();
-        sources.insert("beta".to_string(), sample_skill_template("beta"));
-        sources.insert("Alpha".to_string(), sample_skill_template("Alpha"));
+    fn reports_synced_status() {
+        let content = simple_skill("synced");
 
-        let tools = HashMap::new();
-        let local = HashMap::new();
-        let catalog = Catalog { sources, tools, local };
+        let fixture = TestFixture::new()
+            .with_source_skill("synced", &content)
+            .with_tool_skill(Tool::Claude, "synced", &content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let entries = build_entries(&catalog, &mut diagnostics);
+
+        let status = entries
+            .iter()
+            .find(|entry| entry.name == "synced")
+            .and_then(|entry| {
+                entry
+                    .tool_statuses
+                    .iter()
+                    .find(|status| status.tool == Tool::Claude)
+            })
+            .map(|status| status.status);
+
+        assert_eq!(status, Some(SyncStatus::Synced));
+    }
+
+    #[test]
+    fn reports_missing_status() {
+        let fixture = TestFixture::new()
+            .with_source_skill("missing", &simple_skill("missing"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let entries = build_entries(&catalog, &mut diagnostics);
+
+        let status = entries
+            .iter()
+            .find(|entry| entry.name == "missing")
+            .and_then(|entry| {
+                entry
+                    .tool_statuses
+                    .iter()
+                    .find(|status| status.tool == Tool::Claude)
+            })
+            .map(|status| status.status);
+
+        assert_eq!(status, Some(SyncStatus::Missing));
+    }
+
+    #[test]
+    fn reports_orphan_status() {
+        let fixture = TestFixture::new()
+            .with_tool_skill(Tool::Codex, "orphan", &simple_skill("orphan"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let entries = build_entries(&catalog, &mut diagnostics);
+
+        let status = entries
+            .iter()
+            .find(|entry| entry.name == "orphan")
+            .and_then(|entry| {
+                entry
+                    .tool_statuses
+                    .iter()
+                    .find(|status| status.tool == Tool::Codex)
+            })
+            .map(|status| status.status);
+
+        assert_eq!(status, Some(SyncStatus::Orphan));
+    }
+
+    #[test]
+    fn orders_entries_case_insensitively() {
+        let fixture = TestFixture::new()
+            .with_source_skill("beta", &simple_skill("beta"))
+            .with_source_skill("Alpha", &simple_skill("Alpha"));
+
+        let catalog = fixture.catalog();
         let mut diagnostics = Diagnostics::new(false);
         let entries = build_entries(&catalog, &mut diagnostics);
 

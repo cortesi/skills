@@ -441,3 +441,167 @@ fn format_tools(tools: &[Tool], use_color: bool) -> String {
         .collect::<Vec<_>>()
         .join(", ")
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        diagnostics::Diagnostics,
+        testutil::{TestFixture, simple_skill, skill_content},
+        tool::Tool,
+    };
+
+    use super::{build_sync_plans, SyncAction};
+
+    #[test]
+    fn builds_plan_for_missing_tool_skill() {
+        let fixture = TestFixture::new()
+            .with_source_skill("new-skill", &simple_skill("new-skill"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        // No tool skills means nothing to sync (push is handled separately)
+        assert!(plans.is_empty());
+    }
+
+    #[test]
+    fn builds_plan_for_modified_tool_skill() {
+        let source_content = skill_content("modified", "desc", "source version");
+        let tool_content = skill_content("modified", "desc", "tool version");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("modified", &source_content)
+            .with_tool_skill(Tool::Claude, "modified", &tool_content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].name, "modified");
+        assert!(plans[0].tool_skills.contains_key(&Tool::Claude));
+    }
+
+    #[test]
+    fn ignores_synced_skills() {
+        let content = simple_skill("synced");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("synced", &content)
+            .with_tool_skill(Tool::Claude, "synced", &content)
+            .with_tool_skill(Tool::Codex, "synced", &content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert!(plans.is_empty());
+    }
+
+    #[test]
+    fn detects_partial_sync_across_tools() {
+        let source_content = skill_content("partial", "desc", "source");
+        let tool_content = skill_content("partial", "desc", "modified");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("partial", &source_content)
+            .with_tool_skill(Tool::Claude, "partial", &source_content) // Synced
+            .with_tool_skill(Tool::Codex, "partial", &tool_content); // Modified
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].name, "partial");
+        // Only Codex should be in the differing tools
+        assert!(!plans[0].tool_skills.contains_key(&Tool::Claude));
+        assert!(plans[0].tool_skills.contains_key(&Tool::Codex));
+    }
+
+    #[test]
+    fn sorts_plans_case_insensitively() {
+        let zebra_source = skill_content("Zebra", "desc", "source");
+        let zebra_tool = skill_content("Zebra", "desc", "modified");
+        let apple_source = skill_content("apple", "desc", "source");
+        let apple_tool = skill_content("apple", "desc", "modified");
+        let banana_source = skill_content("Banana", "desc", "source");
+        let banana_tool = skill_content("Banana", "desc", "modified");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("Zebra", &zebra_source)
+            .with_tool_skill(Tool::Claude, "Zebra", &zebra_tool)
+            .with_source_skill("apple", &apple_source)
+            .with_tool_skill(Tool::Claude, "apple", &apple_tool)
+            .with_source_skill("Banana", &banana_source)
+            .with_tool_skill(Tool::Claude, "Banana", &banana_tool);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        let names: Vec<&str> = plans.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["apple", "Banana", "Zebra"]);
+    }
+
+    #[test]
+    fn push_action_when_source_newer() {
+        // Note: This test uses filesystem timestamps which are set at write time.
+        // The source skill is written last, so it will be newer.
+        let source_content = skill_content("skill", "desc", "newer source");
+        let tool_content = skill_content("skill", "desc", "older tool");
+
+        // Write tool first, then source (source will be newer)
+        let fixture = TestFixture::new()
+            .with_tool_skill(Tool::Claude, "skill", &tool_content)
+            .with_source_skill("skill", &source_content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        match &plans[0].action {
+            SyncAction::Push { to_tools } => {
+                assert!(to_tools.contains(&Tool::Claude));
+            }
+            _ => panic!("Expected Push action"),
+        }
+    }
+
+    #[test]
+    fn ignores_orphan_tool_skills() {
+        // Tool has a skill that source doesn't - sync shouldn't care
+        let fixture = TestFixture::new()
+            .with_tool_skill(Tool::Claude, "orphan", &simple_skill("orphan"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert!(plans.is_empty());
+    }
+
+    #[test]
+    fn detects_divergent_tool_modifications() {
+        let source_content = skill_content("divergent", "desc", "source");
+        let claude_content = skill_content("divergent", "desc", "claude version");
+        let codex_content = skill_content("divergent", "desc", "codex version");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("divergent", &source_content)
+            .with_tool_skill(Tool::Claude, "divergent", &claude_content)
+            .with_tool_skill(Tool::Codex, "divergent", &codex_content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let plans = build_sync_plans(&catalog, &mut diagnostics).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].name, "divergent");
+        assert_eq!(plans[0].tool_skills.len(), 2);
+        assert!(plans[0].tool_skills.contains_key(&Tool::Claude));
+        assert!(plans[0].tool_skills.contains_key(&Tool::Codex));
+    }
+}

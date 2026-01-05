@@ -28,6 +28,16 @@ pub struct Catalog {
 }
 
 impl Catalog {
+    /// Create a new catalog with the given data.
+    #[cfg(test)]
+    pub(crate) fn new(
+        sources: HashMap<String, SkillTemplate>,
+        tools: HashMap<Tool, HashMap<String, ToolSkill>>,
+        local: HashMap<Tool, HashMap<String, LocalSkill>>,
+    ) -> Self {
+        Self { sources, tools, local }
+    }
+
     /// Load sources, tool installs, and local skills into a catalog.
     pub(crate) fn load(config: &Config, diagnostics: &mut Diagnostics) -> Self {
         let sources = load_sources(config, diagnostics);

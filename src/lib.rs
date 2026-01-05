@@ -25,6 +25,9 @@ mod paths;
 mod skill;
 /// Status computation for list/diff operations.
 mod status;
+/// Test utilities for mock skill environments.
+#[cfg(test)]
+mod testutil;
 /// Tool directory discovery and metadata.
 mod tool;
 

@@ -409,3 +409,110 @@ fn write_tool_skill(tool_dir: &Path, name: &str, rendered: &str) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        diagnostics::Diagnostics,
+        testutil::{TestFixture, simple_skill, skill_content},
+        tool::Tool,
+    };
+
+    use super::find_out_of_sync_skills;
+
+    #[test]
+    fn finds_missing_skill() {
+        let fixture = TestFixture::new()
+            .with_source_skill("new-skill", &simple_skill("new-skill"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+
+        assert_eq!(out_of_sync, vec!["new-skill"]);
+    }
+
+    #[test]
+    fn finds_modified_skill() {
+        let source_content = skill_content("modified", "desc", "source version");
+        let tool_content = skill_content("modified", "desc", "tool version");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("modified", &source_content)
+            .with_tool_skill(Tool::Claude, "modified", &tool_content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+
+        assert_eq!(out_of_sync, vec!["modified"]);
+    }
+
+    #[test]
+    fn ignores_synced_skill() {
+        let content = simple_skill("synced");
+
+        let fixture = TestFixture::new()
+            .with_source_skill("synced", &content)
+            .with_tool_skill(Tool::Claude, "synced", &content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+
+        assert!(out_of_sync.is_empty());
+    }
+
+    #[test]
+    fn checks_all_specified_tools() {
+        let content = simple_skill("partial");
+
+        // Synced with Claude but missing from Codex
+        let fixture = TestFixture::new()
+            .with_source_skill("partial", &content)
+            .with_tool_skill(Tool::Claude, "partial", &content);
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+
+        // Check only Claude - should be synced
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+        assert!(out_of_sync.is_empty());
+
+        // Check only Codex - should be out of sync (missing)
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Codex], &mut diagnostics);
+        assert_eq!(out_of_sync, vec!["partial"]);
+
+        // Check both - should be out of sync
+        let out_of_sync =
+            find_out_of_sync_skills(&catalog, &[Tool::Claude, Tool::Codex], &mut diagnostics);
+        assert_eq!(out_of_sync, vec!["partial"]);
+    }
+
+    #[test]
+    fn sorts_results_case_insensitively() {
+        let fixture = TestFixture::new()
+            .with_source_skill("Zebra", &simple_skill("Zebra"))
+            .with_source_skill("apple", &simple_skill("apple"))
+            .with_source_skill("Banana", &simple_skill("Banana"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+
+        assert_eq!(out_of_sync, vec!["apple", "Banana", "Zebra"]);
+    }
+
+    #[test]
+    fn ignores_orphan_tool_skills() {
+        // Tool has a skill that source doesn't - should not appear in out_of_sync
+        let fixture = TestFixture::new()
+            .with_tool_skill(Tool::Claude, "orphan", &simple_skill("orphan"));
+
+        let catalog = fixture.catalog();
+        let mut diagnostics = Diagnostics::new(false);
+        let out_of_sync = find_out_of_sync_skills(&catalog, &[Tool::Claude], &mut diagnostics);
+
+        assert!(out_of_sync.is_empty());
+    }
+}

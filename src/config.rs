@@ -28,6 +28,12 @@ struct RawConfig {
 }
 
 impl Config {
+    /// Create a new config with the given source directories.
+    #[cfg(test)]
+    pub(crate) fn new(sources: Vec<PathBuf>) -> Self {
+        Self { sources }
+    }
+
     /// Load the default config from disk.
     pub(crate) fn load() -> Result<Self> {
         let path = paths::default_config_path()?;

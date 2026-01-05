@@ -56,6 +56,12 @@ pub struct LocalSkill {
     pub(crate) tool: Tool,
     /// Directory containing the skill file.
     pub(crate) skill_dir: PathBuf,
+    /// Path to the skill file.
+    pub(crate) skill_path: PathBuf,
+    /// Raw contents of the skill file.
+    pub(crate) contents: String,
+    /// Modified time for the skill file.
+    pub(crate) modified: SystemTime,
 }
 
 /// Load a source skill from a directory if present.
@@ -162,11 +168,18 @@ pub fn load_local_skill(
         }
     };
 
+    let modified = fs::metadata(&skill_path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
     Some(LocalSkill {
         name: frontmatter.name,
         description: frontmatter.description,
         tool,
         skill_dir: skill_dir.to_path_buf(),
+        skill_path,
+        contents,
+        modified,
     })
 }
 
