@@ -286,8 +286,10 @@ mod tests {
         assert!(fixture.source_dir().exists());
         assert!(fixture.tool_dir(Tool::Claude).exists());
         assert!(fixture.tool_dir(Tool::Codex).exists());
+        assert!(fixture.tool_dir(Tool::Gemini).exists());
         assert!(fixture.local_dir(Tool::Claude).exists());
         assert!(fixture.local_dir(Tool::Codex).exists());
+        assert!(fixture.local_dir(Tool::Gemini).exists());
     }
 
     #[test]

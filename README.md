@@ -8,7 +8,7 @@ Both [Claude Code](https://docs.anthropic.com/en/docs/claude-code/skills) and
 instructions that extend what the assistant can do. This tool keeps them in sync across tools,
 so you can maintain skills in one place (your dotfiles, a team repo) and push them everywhere.
 
-- **One source** — No more copying files between `~/.claude/skills/` and `~/.codex/skills/`
+- **One source** — No more copying files between `~/.claude/skills/`, `~/.codex/skills/`, and `~/.gemini/skills/`
 - **Sync everywhere** — Push to both tools with a single command
 - **Pull edits back** — Edit a skill in Claude Code, pull it to your repo, push to Codex
 - **Team sharing** — Point everyone at a shared repo; they all get the same skills
@@ -155,6 +155,7 @@ skills render my-skill --tool claude
 |------|------------------|---------------|
 | Claude Code | `~/.claude/skills/` | [docs](https://code.claude.com/docs/en/skills) |
 | Codex | `~/.codex/skills/` | [docs](https://github.com/openai/codex/blob/main/docs/skills.md) |
+| Gemini | `~/.gemini/skills/` | [docs](https://ai.google.dev/gemini-api/docs/skills) |
 
 
 ## Community

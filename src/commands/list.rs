@@ -42,9 +42,6 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
             .unwrap_or_else(|| "-".to_string());
         let description = skill.map(|s| s.description.as_str()).unwrap_or("-");
 
-        let claude = format_status(status_for_tool(entry, Tool::Claude), use_color);
-        let codex = format_status(status_for_tool(entry, Tool::Codex), use_color);
-
         println!("{}", fmt_skill_name(&entry.name, use_color));
         println!(
             "{}{} {}",
@@ -52,14 +49,21 @@ pub async fn run(color: ColorChoice, verbose: bool) -> Result<()> {
             fmt_label("source:", use_color),
             fmt_path(&source_path, use_color)
         );
-        println!(
-            "{}{} {:<9} {} {:<9}",
-            INDENT,
-            fmt_label("claude:", use_color),
-            claude,
-            fmt_label("codex:", use_color),
-            codex
-        );
+
+        let mut tool_output = String::new();
+        for tool in Tool::all() {
+            let status = format_status(status_for_tool(entry, tool), use_color);
+            let label = format!("{}:", tool.id());
+            use std::fmt::Write;
+            let _ = write!(
+                &mut tool_output,
+                "{} {:<9} ",
+                fmt_label(&label, use_color),
+                status
+            );
+        }
+        println!("{}{}", INDENT, tool_output.trim_end());
+
         println!("{}", wrap_styled(description, INDENT, use_color));
     }
 

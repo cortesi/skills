@@ -34,6 +34,7 @@ pub async fn run(
     let tool_filter: Option<Tool> = match tool_filter {
         Some(ToolFilter::Claude) => Some(Tool::Claude),
         Some(ToolFilter::Codex) => Some(Tool::Codex),
+        Some(ToolFilter::Gemini) => Some(Tool::Gemini),
         Some(ToolFilter::All) | None => None,
     };
 

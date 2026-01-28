@@ -18,6 +18,7 @@ assistants. Core goals:
 |-------------|-----------------------|--------------------------------|
 | Claude Code | `~/.claude/skills/`   | SKILL.md with YAML frontmatter |
 | Codex       | `~/.codex/skills/`    | SKILL.md with YAML frontmatter |
+| Gemini      | `~/.gemini/skills/`   | SKILL.md with YAML frontmatter |
 
 Future versions may add support for additional AI coding tools.
 
@@ -244,9 +245,13 @@ Use the Task tool to spawn background agents for long-running operations.
 {% if tool == "codex" %}
 Use the /background command to run tasks asynchronously.
 {% endif %}
+
+{% if tool == "gemini" %}
+Use the @background agent for async tasks.
+{% endif %}
 ```
 
-The `tool` variable is automatically set during sync to `"claude"` or `"codex"`. Additional
+The `tool` variable is automatically set during sync to `"claude"`, `"codex"`, or `"gemini"`. Additional
 user-defined variables are not supported in the initial version but could be added later if needed.
 
 ## Error Handling

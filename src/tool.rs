@@ -13,6 +13,8 @@ pub enum Tool {
     Claude,
     /// OpenAI Codex skills.
     Codex,
+    /// Google Gemini skills.
+    Gemini,
 }
 
 /// Tool filter for CLI commands.
@@ -22,6 +24,8 @@ pub enum ToolFilter {
     Claude,
     /// Codex only.
     Codex,
+    /// Gemini only.
+    Gemini,
     /// All tools.
     All,
 }
@@ -32,6 +36,7 @@ impl ToolFilter {
         match self {
             Self::Claude => vec![Tool::Claude],
             Self::Codex => vec![Tool::Codex],
+            Self::Gemini => vec![Tool::Gemini],
             Self::All => Tool::all().to_vec(),
         }
     }
@@ -39,8 +44,8 @@ impl ToolFilter {
 
 impl Tool {
     /// Return all supported tools.
-    pub(crate) fn all() -> [Self; 2] {
-        [Self::Claude, Self::Codex]
+    pub(crate) fn all() -> [Self; 3] {
+        [Self::Claude, Self::Codex, Self::Gemini]
     }
 
     /// Return the identifier used in templates.
@@ -48,6 +53,7 @@ impl Tool {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::Gemini => "gemini",
         }
     }
 
@@ -56,6 +62,7 @@ impl Tool {
         match self {
             Self::Claude => "Claude Code",
             Self::Codex => "Codex",
+            Self::Gemini => "Gemini",
         }
     }
 
@@ -65,6 +72,7 @@ impl Tool {
         let dir = match self {
             Self::Claude => home.join(".claude").join("skills"),
             Self::Codex => home.join(".codex").join("skills"),
+            Self::Gemini => home.join(".gemini").join("skills"),
         };
         Ok(dir)
     }
@@ -74,6 +82,7 @@ impl Tool {
         match self {
             Self::Claude => PathBuf::from(".claude").join("skills"),
             Self::Codex => PathBuf::from(".codex").join("skills"),
+            Self::Gemini => PathBuf::from(".gemini").join("skills"),
         }
     }
 }

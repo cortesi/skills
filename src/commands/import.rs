@@ -422,14 +422,20 @@ fn resolve_targets(to: &Option<String>, local: bool, skill_name: &str) -> Result
     if local {
         // Extract to local project directories
         let cwd = env::current_dir().map_err(|_| Error::HomeDirMissing)?;
-        Ok(vec![
-            cwd.join(".claude").join("skills").join(skill_name),
-            cwd.join(".codex").join("skills").join(skill_name),
-        ])
+        let mut paths = Vec::new();
+        for tool in Tool::all() {
+            paths.push(cwd.join(tool.local_skills_dir()).join(skill_name));
+        }
+        Ok(paths)
     } else if let Some(target) = to {
+        // Check if target is a tool name
+        for tool in Tool::all() {
+            if target == tool.id() {
+                return Ok(vec![tool.skills_dir()?.join(skill_name)]);
+            }
+        }
+
         match target.as_str() {
-            "claude" => Ok(vec![Tool::Claude.skills_dir()?.join(skill_name)]),
-            "codex" => Ok(vec![Tool::Codex.skills_dir()?.join(skill_name)]),
             "source" => {
                 // Use first configured source
                 let config = Config::load()?;
@@ -447,11 +453,12 @@ fn resolve_targets(to: &Option<String>, local: bool, skill_name: &str) -> Result
             }
         }
     } else {
-        // Default: both global directories
-        Ok(vec![
-            Tool::Claude.skills_dir()?.join(skill_name),
-            Tool::Codex.skills_dir()?.join(skill_name),
-        ])
+        // Default: all global directories
+        let mut paths = Vec::new();
+        for tool in Tool::all() {
+            paths.push(tool.skills_dir()?.join(skill_name));
+        }
+        Ok(paths)
     }
 }
 
